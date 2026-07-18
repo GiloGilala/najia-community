@@ -4,12 +4,20 @@
 
 **Blocked by:** 01 — User registration & password hashing
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `contact_verifications` table exists: id, user_id, code_hash, expires_at, consumed_at (nullable), created_at
-- [ ] `issueContactVerification({ userId })` creates a code, stores only its hash, sets an expiry via the injected clock, and emits the code through the notifier seam
-- [ ] The notifier is an injected collaborator, faked in tests to capture the emitted code
-- [ ] `confirmContactVerification({ userId, code })` with the correct, unexpired code advances the account to `email_verified`
-- [ ] A wrong code is rejected and does not advance status
-- [ ] An expired code is rejected and does not advance status
-- [ ] A consumed code cannot be reused
+- [x] `contact_verifications` table exists: id, user_id, code_hash, expires_at, consumed_at (nullable), created_at
+- [x] `issueContactVerification({ userId })` creates a code, stores only its hash, sets an expiry via the injected clock, and emits the code through the notifier seam
+- [x] The notifier is an injected collaborator, faked in tests to capture the emitted code
+- [x] `confirmContactVerification({ userId, code })` with the correct, unexpired code advances the account to `email_verified`
+- [x] A wrong code is rejected and does not advance status
+- [x] An expired code is rejected and does not advance status
+- [x] A consumed code cannot be reused
+
+## Comments
+
+- `db/schema/contact-verifications.ts` + migration `0002`. Append-style rows; `consumedAt` marks use.
+- `lib/notify/notifier.ts`: `Notifier` interface + `CapturingNotifier` (test fake).
+- `lib/crypto/code.ts`: 6-digit numeric code generation + sha-256 hashing (`hashCode`).
+- `services/auth.service.ts`: added `notifier` dep, `ContactVerificationError`, `CONTACT_CODE_TTL_MS` (15 min), `issueContactVerification`, `confirmContactVerification`. Confirm picks the most-recent valid (unconsumed, unexpired) code.
+- Verified: `bun run typecheck` clean; `bun test` → 47 pass, 0 fail.

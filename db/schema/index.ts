@@ -3,3 +3,4 @@
  */
 export * from "./evidence.ts";
 export * from "./users.ts";
+export * from "./contact-verifications.ts";

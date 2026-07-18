@@ -1,4 +1,4 @@
-import { or, eq } from "drizzle-orm";
+import { or, eq, and } from "drizzle-orm";
 
 import type { DbClient } from "../db/client.ts";
 import type { Clock } from "../lib/clock/clock.ts";
@@ -10,7 +10,13 @@ import {
   validateRegistration,
   RegistrationValidationError,
 } from "../lib/validation/registration.ts";
-import { users, type UserRow } from "../db/schema/users.ts";
+import { generateNumericCode, hashCode } from "../lib/crypto/code.ts";
+import type { Notifier } from "../lib/notify/notifier.ts";
+import {
+  users,
+  type UserRow,
+} from "../db/schema/users.ts";
+import { contactVerifications } from "../db/schema/contact-verifications.ts";
 
 export interface RegisterInput {
   email?: string;
@@ -18,20 +24,51 @@ export interface RegisterInput {
   password: string;
 }
 
+/** Raised when a contact-verification code is missing, wrong, or expired. */
+export class ContactVerificationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ContactVerificationError";
+  }
+}
+
+/** How long an issued contact code remains valid. */
+export const CONTACT_CODE_TTL_MS = 15 * 60 * 1000;
+
 export interface AuthServiceDeps {
   db: DbClient;
   clock: Clock;
+  /** Delivers one-time codes; faked in tests. Required for ticket 02+. */
+  notifier?: Notifier;
   /** Defaults to argon2id via Bun.password; overridable for tests. */
   passwordHasher?: PasswordHasher;
 }
 
 export interface AuthService {
   register(input: RegisterInput): Promise<UserRow>;
+  issueContactVerification(args: { userId: string }): Promise<void>;
+  confirmContactVerification(args: {
+    userId: string;
+    code: string;
+  }): Promise<UserRow>;
 }
 
 export function createAuthService(deps: AuthServiceDeps): AuthService {
   const { db, clock } = deps;
   const passwordHasher = deps.passwordHasher ?? argon2PasswordHasher;
+  const notifier = deps.notifier;
+
+  async function requireUser(userId: string): Promise<UserRow> {
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!row) {
+      throw new ContactVerificationError("User not found");
+    }
+    return row;
+  }
 
   return {
     async register(input) {
@@ -77,6 +114,65 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         throw new Error("Failed to insert user row");
       }
       return row;
+    },
+
+    async issueContactVerification({ userId }) {
+      if (!notifier) {
+        throw new Error("No notifier configured for contact verification");
+      }
+      await requireUser(userId);
+      const now = clock.now();
+      const code = generateNumericCode();
+      await db.insert(contactVerifications).values({
+        userId,
+        codeHash: hashCode(code),
+        expiresAt: new Date(now.getTime() + CONTACT_CODE_TTL_MS),
+        consumedAt: null,
+        createdAt: now,
+      });
+      const channel = (
+        await db.select({ email: users.email, phone: users.phone }).from(users).where(eq(users.id, userId)).limit(1)
+      )[0];
+      const target = channel?.email !== null ? "email" : "phone";
+      await notifier.sendCode({ userId, channel: target, code });
+    },
+
+    async confirmContactVerification({ userId, code }) {
+      await requireUser(userId);
+      const now = clock.now();
+      const rows = await db
+        .select()
+        .from(contactVerifications)
+        .where(
+          and(
+            eq(contactVerifications.userId, userId),
+            eq(contactVerifications.codeHash, hashCode(code)),
+          ),
+        );
+      // Prefer the most recently issued, still-valid code.
+      const valid = rows
+        .filter(
+          (r) => r.consumedAt === null && r.expiresAt.getTime() > now.getTime(),
+        )
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const match = valid[0];
+      if (!match) {
+        throw new ContactVerificationError("Invalid or expired code");
+      }
+      await db
+        .update(contactVerifications)
+        .set({ consumedAt: now })
+        .where(eq(contactVerifications.id, match.id));
+      await db
+        .update(users)
+        .set({ verificationStatus: "email_verified", updatedAt: now })
+        .where(eq(users.id, userId));
+      const [updated] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      return updated!;
     },
   };
 }

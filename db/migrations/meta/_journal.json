@@ -15,6 +15,13 @@
       "when": 1784415489444,
       "tag": "0001_outgoing_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784416189515,
+      "tag": "0002_fresh_franklin_richards",
+      "breakpoints": true
     }
   ]
 }
