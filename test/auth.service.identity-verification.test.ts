@@ -14,6 +14,7 @@ import {
   FakeIdVerificationProvider,
   type IdVerificationResult,
 } from "../lib/verification/id-verification-provider.ts";
+import { CapturingNotifier } from "../lib/notify/notifier.ts";
 import { IdentityVerificationError } from "../services/auth.service.ts";
 import { users } from "../db/schema/users.ts";
 
@@ -24,13 +25,28 @@ import { users } from "../db/schema/users.ts";
 describe("auth service — government ID verification", () => {
   let harness: TestHarness;
   let provider: FakeIdVerificationProvider;
+  let notifier: CapturingNotifier;
 
   const makeService = () =>
-    createAuthService({ db: harness.db, clock: harness.clock, idProvider: provider });
+    createAuthService({
+      db: harness.db,
+      clock: harness.clock,
+      idProvider: provider,
+      notifier,
+    });
 
   const registerUser = async (email: string) => {
     const service = makeService();
     return service.register({ email, password: "correct horse" });
+  };
+
+  /** Registers then completes contact verification -> email_verified. */
+  const registerContactVerifiedUser = async (email: string) => {
+    const service = makeService();
+    const user = await service.register({ email, password: "correct horse" });
+    await service.issueContactVerification({ userId: user.id });
+    const code = notifier.lastCode!;
+    return service.confirmContactVerification({ userId: user.id, code });
   };
 
   beforeAll(async () => {
@@ -45,12 +61,13 @@ describe("auth service — government ID verification", () => {
   beforeEach(async () => {
     await harness.reset();
     provider = new FakeIdVerificationProvider();
+    notifier = new CapturingNotifier();
   });
 
   test("a passing provider check advances the account to id_verified", async () => {
     provider.nextResult = { verified: true };
     const service = makeService();
-    const user = await registerUser("ada@example.com");
+    const user = await registerContactVerifiedUser("ada@example.com");
 
     const result = await service.submitIdentityVerification({
       userId: user.id,
@@ -68,7 +85,7 @@ describe("auth service — government ID verification", () => {
     const reason = "Document could not be read";
     provider.nextResult = { verified: false, reason };
     const service = makeService();
-    const user = await registerUser("grace@example.com");
+    const user = await registerContactVerifiedUser("grace@example.com");
 
     const result = await service.submitIdentityVerification({
       userId: user.id,
@@ -78,14 +95,14 @@ describe("auth service — government ID verification", () => {
     expect(result.verified).toBe(false);
     expect(result.reason).toBe(reason);
     const [row] = await harness.db.select().from(users).where(eq(users.id, user.id));
-    expect(row?.verificationStatus).toBe("unverified");
+    expect(row?.verificationStatus).toBe("email_verified");
     expect(row?.governmentIdHash).toBeNull();
   });
 
   test("the raw government ID is never stored", async () => {
     provider.nextResult = { verified: true };
     const service = makeService();
-    const user = await registerUser("x@example.com");
+    const user = await registerContactVerifiedUser("x@example.com");
     await service.submitIdentityVerification({
       userId: user.id,
       governmentId: "SECRETID001",
@@ -100,8 +117,8 @@ describe("auth service — government ID verification", () => {
   test("a second account with the same government ID is rejected", async () => {
     provider.nextResult = { verified: true };
     const service = makeService();
-    const a = await registerUser("a1@example.com");
-    const b = await registerUser("a2@example.com");
+    const a = await registerContactVerifiedUser("a1@example.com");
+    const b = await registerContactVerifiedUser("a2@example.com");
     await service.submitIdentityVerification({
       userId: a.id,
       governmentId: "SAMEID999",
@@ -118,11 +135,24 @@ describe("auth service — government ID verification", () => {
   test("the provider receives the government ID", async () => {
     provider.nextResult = { verified: true };
     const service = makeService();
-    const user = await registerUser("y@example.com");
+    const user = await registerContactVerifiedUser("y@example.com");
     await service.submitIdentityVerification({
       userId: user.id,
       governmentId: "PROVIDED123",
     });
     expect(provider.lastGovernmentId).toBe("PROVIDED123");
+  });
+
+  test("identity verification is rejected before contact verification (forward-only)", async () => {
+    provider.nextResult = { verified: true };
+    const service = makeService();
+    const user = await registerUser("z@example.com");
+    const result = await service.submitIdentityVerification({
+      userId: user.id,
+      governmentId: "NEEDSCONTACT1",
+    });
+    expect(result.verified).toBe(false);
+    const [row] = await harness.db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.verificationStatus).toBe("unverified");
   });
 });

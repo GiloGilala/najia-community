@@ -179,7 +179,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     },
 
     async confirmContactVerification({ userId, code }) {
-      await requireUser(userId);
+      const user = await requireUser(userId);
       const now = clock.now();
       const rows = await db
         .select()
@@ -199,6 +199,12 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       const match = valid[0];
       if (!match) {
         throw new ContactVerificationError("Invalid or expired code");
+      }
+      // Forward-only: only advance from unverified.
+      if (user.verificationStatus !== "unverified") {
+        throw new ContactVerificationError(
+          "Contact verification already completed",
+        );
       }
       await db
         .update(contactVerifications)
@@ -229,6 +235,15 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 
       if (!result.verified) {
         return { verified: false, reason: result.reason };
+      }
+
+      // Forward-only lifecycle: identity verification requires contact
+      // verification to have completed first.
+      if (user.verificationStatus !== "email_verified") {
+        return {
+          verified: false,
+          reason: "Contact verification must be completed before identity verification",
+        };
       }
 
       const govIdHash = hashGovernmentId(governmentId);
