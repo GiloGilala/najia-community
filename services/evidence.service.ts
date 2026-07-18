@@ -5,32 +5,16 @@ import type { DbClient } from "../db/client.ts";
 import type { FileStorage } from "../lib/storage/file-storage.ts";
 import type { Clock } from "../lib/clock/clock.ts";
 import {
+  isVerifiableMimeType,
+  validateEvidenceUpload,
+} from "../lib/validation/evidence-upload.ts";
+import {
   evidence,
   evidenceAuditEvents,
   type EvidenceRow,
   type EvidenceAuditEventRow,
   type VerificationStatus,
 } from "../db/schema/evidence.ts";
-
-/** MIME types for which cryptographic hash verification is meaningful. */
-const SUPPORTED_MIME_TYPES = new Set<string>([
-  // images
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  // video
-  "video/mp4",
-  "video/x-msvideo",
-  "video/webm",
-  // audio
-  "audio/mpeg",
-  "audio/wav",
-  "audio/mp4",
-  // documents
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
-]);
 
 export interface UploadEvidenceInput {
   caseId: string;
@@ -76,27 +60,31 @@ export function createEvidenceService(
 
   return {
     async uploadEvidence(input) {
+      // Validate before any persistence — a rejected upload creates no row and
+      // writes nothing to storage.
+      const validated = validateEvidenceUpload(input);
+
       const now = clock.now();
-      const hash = sha256Hex(input.bytes);
+      const hash = sha256Hex(validated.bytes);
       const storageKey = `evidence/${randomUUID()}`;
-      const verificationStatus: VerificationStatus = SUPPORTED_MIME_TYPES.has(
-        input.mimeType,
+      const verificationStatus: VerificationStatus = isVerifiableMimeType(
+        validated.mimeType,
       )
         ? "verified"
         : "not_applicable";
 
       // Persist the raw bytes before recording the row so a stored key always
       // resolves to real bytes.
-      await storage.put(storageKey, input.bytes);
+      await storage.put(storageKey, validated.bytes);
 
       const [row] = await db
         .insert(evidence)
         .values({
-          caseId: input.caseId,
-          uploaderId: input.uploaderId,
-          filename: input.filename,
-          mimeType: input.mimeType,
-          sizeBytes: input.bytes.length,
+          caseId: validated.caseId,
+          uploaderId: validated.uploaderId,
+          filename: validated.filename,
+          mimeType: validated.mimeType,
+          sizeBytes: validated.bytes.length,
           sha256Hash: hash,
           storageKey,
           verificationStatus,
@@ -111,7 +99,7 @@ export function createEvidenceService(
       await db.insert(evidenceAuditEvents).values({
         evidenceId: row.id,
         eventType: "uploaded",
-        actorId: input.uploaderId,
+        actorId: validated.uploaderId,
         outcome: null,
         createdAt: now,
       });
@@ -131,7 +119,7 @@ export function createEvidenceService(
       }
 
       let status: VerificationStatus;
-      if (!SUPPORTED_MIME_TYPES.has(row.mimeType)) {
+      if (!isVerifiableMimeType(row.mimeType)) {
         // Hash verification does not apply to this file type; do not re-hash.
         status = "not_applicable";
       } else {

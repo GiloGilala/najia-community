@@ -20,8 +20,8 @@ describe("evidence service — upload & fingerprint", () => {
   let harness: TestHarness;
 
   const supportedUpload = () => ({
-    caseId: "11111111-1111-1111-1111-111111111111",
-    uploaderId: "22222222-2222-2222-2222-222222222222",
+    caseId: "11111111-1111-4111-8111-111111111111",
+    uploaderId: "22222222-2222-4222-8222-222222222222",
     filename: "photo.jpg",
     mimeType: "image/jpeg",
     bytes: new Uint8Array([1, 2, 3, 4, 5]),
