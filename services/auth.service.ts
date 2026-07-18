@@ -1,4 +1,5 @@
 import { or, eq, and } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 
 import type { DbClient } from "../db/client.ts";
 import type { Clock } from "../lib/clock/clock.ts";
@@ -12,6 +13,7 @@ import {
 } from "../lib/validation/registration.ts";
 import { generateNumericCode, hashCode } from "../lib/crypto/code.ts";
 import { hashGovernmentId } from "../lib/crypto/government-id.ts";
+import { createHmacTokenSigner, resolveSigningSecret, type TokenSigner } from "../lib/crypto/token.ts";
 import type { Notifier } from "../lib/notify/notifier.ts";
 import type { IdVerificationProvider } from "../lib/verification/id-verification-provider.ts";
 import {
@@ -19,6 +21,7 @@ import {
   type UserRow,
 } from "../db/schema/users.ts";
 import { contactVerifications } from "../db/schema/contact-verifications.ts";
+import { sessions } from "../db/schema/sessions.ts";
 
 export interface RegisterInput {
   email?: string;
@@ -42,8 +45,20 @@ export class IdentityVerificationError extends Error {
   }
 }
 
+/** Raised for authentication failures (login): identical for wrong password
+ *  and unknown identifier, so accounts are not enumerable. */
+export class AuthError extends Error {
+  constructor(message = "Invalid credentials") {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
 /** How long an issued contact code remains valid. */
 export const CONTACT_CODE_TTL_MS = 15 * 60 * 1000;
+
+/** How long an issued session remains valid. */
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface AuthServiceDeps {
   db: DbClient;
@@ -52,6 +67,8 @@ export interface AuthServiceDeps {
   notifier?: Notifier;
   /** Identity verification (Jumio/Onfido); faked in tests. Required for ticket 03+. */
   idProvider?: IdVerificationProvider;
+  /** Signs session tokens; reads AUTH_SECRET or an injected secret. Required for ticket 04+. */
+  tokenSigner?: TokenSigner;
   /** Defaults to argon2id via Bun.password; overridable for tests. */
   passwordHasher?: PasswordHasher;
 }
@@ -67,6 +84,10 @@ export interface AuthService {
     userId: string;
     governmentId: string;
   }): Promise<{ verified: boolean; reason?: string }>;
+  login(args: {
+    identifier: string;
+    password: string;
+  }): Promise<{ token: string; expiresAt: Date }>;
 }
 
 export function createAuthService(deps: AuthServiceDeps): AuthService {
@@ -74,6 +95,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   const passwordHasher = deps.passwordHasher ?? argon2PasswordHasher;
   const notifier = deps.notifier;
   const idProvider = deps.idProvider;
+  let tokenSigner = deps.tokenSigner;
 
   async function requireUser(userId: string): Promise<UserRow> {
     const [row] = await db
@@ -221,6 +243,42 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         );
       }
       return { verified: true };
+    },
+
+    async login({ identifier, password }) {
+      // Resolve the signer lazily so constructing the service for other
+      // methods (e.g. register) does not require AUTH_SECRET.
+      const signer = tokenSigner ?? createHmacTokenSigner(resolveSigningSecret());
+
+      // Non-enumerable: a single query path; the same AuthError is thrown for
+      // an unknown account or a wrong password.
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(or(eq(users.email, identifier), eq(users.phone, identifier)))
+        .limit(1);
+
+      const passwordHash = user?.passwordHash ?? "";
+      const ok = await passwordHasher.verify(password, passwordHash);
+      if (!user || !ok) {
+        throw new AuthError();
+      }
+
+      const now = clock.now();
+      const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+      const sessionId = randomUUID();
+      const token = signer.sign({ sessionId, userId: user.id }, expiresAt);
+
+      await db.insert(sessions).values({
+        id: sessionId,
+        userId: user.id,
+        tokenHash: hashCode(token),
+        expiresAt,
+        createdAt: now,
+        revokedAt: null,
+      });
+
+      return { token, expiresAt };
     },
   };
 }
