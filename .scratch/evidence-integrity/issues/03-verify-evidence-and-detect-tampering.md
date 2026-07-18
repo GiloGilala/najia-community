@@ -4,11 +4,18 @@
 
 **Blocked by:** 02 — Upload & fingerprint evidence
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `verifyEvidence({ evidenceId })` re-hashes the stored bytes and compares to the original hash
-- [ ] Returns status `verified` when the re-hash matches the original
-- [ ] Returns status `altered` when the stored bytes have changed
-- [ ] Writes a `verified` audit event capturing the outcome (`verified` / `altered`)
-- [ ] The original stored hash is never modified by verification
-- [ ] Verification is idempotent: calling it twice yields identical results and does not corrupt state
+- [x] `verifyEvidence({ evidenceId })` re-hashes the stored bytes and compares to the original hash
+- [x] Returns status `verified` when the re-hash matches the original
+- [x] Returns status `altered` when the stored bytes have changed
+- [x] Writes a `verified` audit event capturing the outcome (`verified` / `altered`)
+- [x] The original stored hash is never modified by verification
+- [x] Verification is idempotent: calling it twice yields identical results and does not corrupt state
+
+## Comments
+
+- Added `verifyEvidence` to `services/evidence.service.ts`. Loads the row, and for supported types re-hashes the stored bytes and compares to the original `sha256Hash`. Unsupported types short-circuit to `not_applicable` without re-hashing.
+- Returns `{ status, originalHash }`; a `verified` audit event records the outcome each call. The original hash is read-only during verification, so idempotency holds by construction.
+- Added `EvidenceNotFoundError` for a missing id.
+- Verified: `bun run typecheck` clean; `bun test` → 24 pass, 0 fail.

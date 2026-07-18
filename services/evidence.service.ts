@@ -46,8 +46,22 @@ export interface EvidenceServiceDeps {
   clock: Clock;
 }
 
+export interface VerificationResult {
+  status: VerificationStatus;
+  /** The hash captured at upload time; never changes on verification. */
+  originalHash: string;
+}
+
+export class EvidenceNotFoundError extends Error {
+  constructor(evidenceId: string) {
+    super(`No evidence found with id: ${evidenceId}`);
+    this.name = "EvidenceNotFoundError";
+  }
+}
+
 export interface EvidenceService {
   uploadEvidence(input: UploadEvidenceInput): Promise<EvidenceRow>;
+  verifyEvidence(args: { evidenceId: string }): Promise<VerificationResult>;
   getAuditTrail(args: { evidenceId: string }): Promise<EvidenceAuditEventRow[]>;
 }
 
@@ -103,6 +117,38 @@ export function createEvidenceService(
       });
 
       return row;
+    },
+
+    async verifyEvidence({ evidenceId }) {
+      const [row] = await db
+        .select()
+        .from(evidence)
+        .where(eq(evidence.id, evidenceId))
+        .limit(1);
+
+      if (!row) {
+        throw new EvidenceNotFoundError(evidenceId);
+      }
+
+      let status: VerificationStatus;
+      if (!SUPPORTED_MIME_TYPES.has(row.mimeType)) {
+        // Hash verification does not apply to this file type; do not re-hash.
+        status = "not_applicable";
+      } else {
+        const storedBytes = await storage.get(row.storageKey);
+        const currentHash = sha256Hex(storedBytes);
+        status = currentHash === row.sha256Hash ? "verified" : "altered";
+      }
+
+      await db.insert(evidenceAuditEvents).values({
+        evidenceId: row.id,
+        eventType: "verified",
+        actorId: null,
+        outcome: status,
+        createdAt: clock.now(),
+      });
+
+      return { status, originalHash: row.sha256Hash };
     },
 
     async getAuditTrail({ evidenceId }) {
