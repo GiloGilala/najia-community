@@ -46,6 +46,7 @@ export class EvidenceNotFoundError extends Error {
 export interface EvidenceService {
   uploadEvidence(input: UploadEvidenceInput): Promise<EvidenceRow>;
   verifyEvidence(args: { evidenceId: string }): Promise<VerificationResult>;
+  recordAccess(args: { evidenceId: string; actorId: string }): Promise<void>;
   getAuditTrail(args: { evidenceId: string }): Promise<EvidenceAuditEventRow[]>;
 }
 
@@ -137,6 +138,26 @@ export function createEvidenceService(
       });
 
       return { status, originalHash: row.sha256Hash };
+    },
+
+    async recordAccess({ evidenceId, actorId }) {
+      const [row] = await db
+        .select({ id: evidence.id })
+        .from(evidence)
+        .where(eq(evidence.id, evidenceId))
+        .limit(1);
+
+      if (!row) {
+        throw new EvidenceNotFoundError(evidenceId);
+      }
+
+      await db.insert(evidenceAuditEvents).values({
+        evidenceId: row.id,
+        eventType: "accessed",
+        actorId,
+        outcome: null,
+        createdAt: clock.now(),
+      });
     },
 
     async getAuditTrail({ evidenceId }) {
