@@ -59,6 +59,19 @@ export function createEvidenceService(
 ): EvidenceService {
   const { db, storage, clock } = deps;
 
+  /** Load an evidence row by id, throwing {@link EvidenceNotFoundError} if absent. */
+  async function requireEvidence(evidenceId: string): Promise<EvidenceRow> {
+    const [row] = await db
+      .select()
+      .from(evidence)
+      .where(eq(evidence.id, evidenceId))
+      .limit(1);
+    if (!row) {
+      throw new EvidenceNotFoundError(evidenceId);
+    }
+    return row;
+  }
+
   return {
     async uploadEvidence(input) {
       // Validate before any persistence — a rejected upload creates no row and
@@ -109,15 +122,7 @@ export function createEvidenceService(
     },
 
     async verifyEvidence({ evidenceId }) {
-      const [row] = await db
-        .select()
-        .from(evidence)
-        .where(eq(evidence.id, evidenceId))
-        .limit(1);
-
-      if (!row) {
-        throw new EvidenceNotFoundError(evidenceId);
-      }
+      const row = await requireEvidence(evidenceId);
 
       let status: VerificationStatus;
       if (!isVerifiableMimeType(row.mimeType)) {
@@ -141,15 +146,7 @@ export function createEvidenceService(
     },
 
     async recordAccess({ evidenceId, actorId }) {
-      const [row] = await db
-        .select({ id: evidence.id })
-        .from(evidence)
-        .where(eq(evidence.id, evidenceId))
-        .limit(1);
-
-      if (!row) {
-        throw new EvidenceNotFoundError(evidenceId);
-      }
+      const row = await requireEvidence(evidenceId);
 
       await db.insert(evidenceAuditEvents).values({
         evidenceId: row.id,
