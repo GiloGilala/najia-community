@@ -11,7 +11,9 @@ import {
   RegistrationValidationError,
 } from "../lib/validation/registration.ts";
 import { generateNumericCode, hashCode } from "../lib/crypto/code.ts";
+import { hashGovernmentId } from "../lib/crypto/government-id.ts";
 import type { Notifier } from "../lib/notify/notifier.ts";
+import type { IdVerificationProvider } from "../lib/verification/id-verification-provider.ts";
 import {
   users,
   type UserRow,
@@ -32,6 +34,14 @@ export class ContactVerificationError extends Error {
   }
 }
 
+/** Raised when identity verification cannot proceed (provider failure, duplicate ID). */
+export class IdentityVerificationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "IdentityVerificationError";
+  }
+}
+
 /** How long an issued contact code remains valid. */
 export const CONTACT_CODE_TTL_MS = 15 * 60 * 1000;
 
@@ -40,6 +50,8 @@ export interface AuthServiceDeps {
   clock: Clock;
   /** Delivers one-time codes; faked in tests. Required for ticket 02+. */
   notifier?: Notifier;
+  /** Identity verification (Jumio/Onfido); faked in tests. Required for ticket 03+. */
+  idProvider?: IdVerificationProvider;
   /** Defaults to argon2id via Bun.password; overridable for tests. */
   passwordHasher?: PasswordHasher;
 }
@@ -51,12 +63,17 @@ export interface AuthService {
     userId: string;
     code: string;
   }): Promise<UserRow>;
+  submitIdentityVerification(args: {
+    userId: string;
+    governmentId: string;
+  }): Promise<{ verified: boolean; reason?: string }>;
 }
 
 export function createAuthService(deps: AuthServiceDeps): AuthService {
   const { db, clock } = deps;
   const passwordHasher = deps.passwordHasher ?? argon2PasswordHasher;
   const notifier = deps.notifier;
+  const idProvider = deps.idProvider;
 
   async function requireUser(userId: string): Promise<UserRow> {
     const [row] = await db
@@ -173,6 +190,37 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         .where(eq(users.id, userId))
         .limit(1);
       return updated!;
+    },
+
+    async submitIdentityVerification({ userId, governmentId }) {
+      if (!idProvider) {
+        throw new Error("No ID verification provider configured");
+      }
+      const user = await requireUser(userId);
+
+      const result = await idProvider.verify({
+        governmentId,
+        channel: user.email !== null ? "email" : "phone",
+      });
+
+      if (!result.verified) {
+        return { verified: false, reason: result.reason };
+      }
+
+      const govIdHash = hashGovernmentId(governmentId);
+      // The unique constraint on government_id_hash guards one verified
+      // account per person; a concurrent insert with the same ID is rejected.
+      try {
+        await db
+          .update(users)
+          .set({ governmentIdHash: govIdHash, verificationStatus: "id_verified", updatedAt: clock.now() })
+          .where(eq(users.id, userId));
+      } catch {
+        throw new IdentityVerificationError(
+          "This government ID is already linked to another account",
+        );
+      }
+      return { verified: true };
     },
   };
 }

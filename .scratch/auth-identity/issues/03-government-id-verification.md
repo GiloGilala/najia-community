@@ -4,11 +4,18 @@
 
 **Blocked by:** 01 — User registration & password hashing
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `lib/verification/id-verification-provider.ts` defines a provider interface (`verify(...) -> { verified, reason? }`) with a fake for tests
-- [ ] `submitIdentityVerification({ userId, governmentId })` hashes the ID and persists only the hash
-- [ ] A passing provider result advances the account to `id_verified`
-- [ ] A failing provider result leaves `verification_status` unchanged and returns a clear reason
-- [ ] `government_id_hash` has a unique constraint; a second account with the same ID is rejected
-- [ ] The raw government ID is never persisted or logged
+- [x] `lib/verification/id-verification-provider.ts` defines a provider interface (`verify(...) -> { verified, reason? }`) with a fake for tests
+- [x] `submitIdentityVerification({ userId, governmentId })` hashes the ID and persists only the hash
+- [x] A passing provider result advances the account to `id_verified`
+- [x] A failing provider result leaves `verification_status` unchanged and returns a clear reason
+- [x] `government_id_hash` has a unique constraint; a second account with the same ID is rejected
+- [x] The raw government ID is never persisted or logged
+
+## Comments
+
+- `lib/verification/id-verification-provider.ts`: `IdVerificationProvider` interface + `FakeIdVerificationProvider` (programmable `nextResult`, captures `lastGovernmentId`).
+- `lib/crypto/government-id.ts`: `hashGovernmentId` — deterministic (normalized, upper-cased, unsalted sha-256) so the same ID always collides, enforcing one verified account per person.
+- `services/auth.service.ts`: added `idProvider` dep, `IdentityVerificationError`, `submitIdentityVerification`. On provider pass, updates `government_id_hash` + `verification_status = id_verified`; the unique constraint rejects duplicate IDs (caught -> `IdentityVerificationError`). On fail, returns `{ verified:false, reason }` with status unchanged.
+- Verified: `bun run typecheck` clean; `bun test` → 52 pass, 0 fail.
