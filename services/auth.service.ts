@@ -88,6 +88,8 @@ export interface AuthService {
     identifier: string;
     password: string;
   }): Promise<{ token: string; expiresAt: Date }>;
+  validateSession(args: { token: string }): Promise<UserRow>;
+  logout(args: { token: string }): Promise<void>;
 }
 
 export function createAuthService(deps: AuthServiceDeps): AuthService {
@@ -279,6 +281,47 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       });
 
       return { token, expiresAt };
+    },
+
+    async validateSession({ token }) {
+      const signer = tokenSigner ?? createHmacTokenSigner(resolveSigningSecret());
+      const claims = signer.verify(token);
+      if (!claims) {
+        throw new AuthError();
+      }
+      const [session] = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.id, claims.sessionId))
+        .limit(1);
+      if (!session || session.revokedAt !== null) {
+        throw new AuthError();
+      }
+      if (session.expiresAt.getTime() <= clock.now().getTime()) {
+        throw new AuthError();
+      }
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, session.userId))
+        .limit(1);
+      if (!user) {
+        throw new AuthError();
+      }
+      return user;
+    },
+
+    async logout({ token }) {
+      const signer = tokenSigner ?? createHmacTokenSigner(resolveSigningSecret());
+      const claims = signer.verify(token);
+      if (!claims) {
+        throw new AuthError();
+      }
+      // Idempotent: a missing/already-revoked session is a no-op, not an error.
+      await db
+        .update(sessions)
+        .set({ revokedAt: clock.now() })
+        .where(eq(sessions.id, claims.sessionId));
     },
   };
 }

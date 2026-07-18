@@ -4,10 +4,15 @@
 
 **Blocked by:** 04 — Login & session issuance
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `validateSession({ token })` resolves a live, unexpired, unrevoked session to its user record
-- [ ] An expired token is rejected
-- [ ] An unknown token is rejected
-- [ ] A revoked token is rejected
-- [ ] `logout({ token })` revokes the session; the token no longer validates afterward
+- [x] `validateSession({ token })` resolves a live, unexpired, unrevoked session to its user record
+- [x] An expired token is rejected
+- [x] An unknown token is rejected
+- [x] A revoked token is rejected
+- [x] `logout({ token })` revokes the session; the token no longer validates afterward
+
+## Comments
+
+- `services/auth.service.ts`: added `validateSession` and `logout`. Validation checks token signature, then the session row (not revoked, not expired per the injected clock), then the user. Logout sets `revoked_at` (idempotent). All rejections throw the same `AuthError` as login.
+- Completes the auth slice. Verified: `bun run typecheck` clean; `bun test` → 62 pass, 0 fail.
