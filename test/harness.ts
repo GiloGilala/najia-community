@@ -34,6 +34,8 @@ export interface TestHarness {
   migrate(): Promise<void>;
   reset(): Promise<void>;
   close(): Promise<void>;
+  /** List the base tables in the public schema, for table-existence assertions. */
+  listTables(): Promise<string[]>;
 }
 
 const DEFAULT_CLOCK_START = new Date("2025-01-01T00:00:00.000Z");
@@ -88,6 +90,9 @@ export function createTestHarness(): TestHarness {
     },
     async close() {
       await connection.close();
+    },
+    async listTables() {
+      return connection.listTables();
     },
   };
 }

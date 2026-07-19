@@ -51,3 +51,22 @@ _Avoid_: log (too generic)
 **Case**
 The civil-dispute context to which an Evidence Record belongs. Used as a foreign key on the Evidence Record; the Case itself is defined by a later slice.
 _Avoid_: dispute (use Case as the canonical container)
+
+### Policy Sentiment Polls
+
+**Jurisdiction**
+A node in the residency hierarchy (national → state → local/LGA). A User's `jurisdictionId` places them; a poll's `jurisdictionId` scopes who may vote. Residency is satisfied when the voter's jurisdiction equals or is a descendant of the poll's jurisdiction (ancestor walk up `parent_id`).
+_Avoid_: region, area (use Jurisdiction)
+
+**Poll**
+A non-binding citizen-sentiment question on policy, with 2–5 options and an open/close window. Lifecycle is `scheduled` → `open` → `closed`, derived from the clock against the window (stored `status` is a cached convenience).
+_Avoid_: survey, vote (the "vote" is the citizen action, not the poll)
+
+**Vote**
+A single citizen's selection on a Poll, one per User per Poll (unique `(poll_id, voter_id)`). Stored with `option_index` and `voter_id` for uniqueness only; results are aggregate and never attribute a Vote to a User.
+_Avoid_: ballot
+
+**Poll Results**
+Aggregate per-option counts and percentages plus the mandatory disclaimer: "This is citizen sentiment only. It has no legal or electoral weight." Aggregate-only — voters are never exposed.
+_Avoid_: tally (use Poll Results)
+

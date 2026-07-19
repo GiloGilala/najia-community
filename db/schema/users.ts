@@ -4,7 +4,9 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  foreignKey,
 } from "drizzle-orm/pg-core";
+import { jurisdictions } from "./jurisdictions.ts";
 
 /**
  * Platform user accounts and their verification status.
@@ -25,6 +27,8 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     verificationStatus: text("verification_status").notNull(),
     governmentIdHash: text("government_id_hash"),
+    /** Residency: the jurisdiction the User belongs to (for poll eligibility). */
+    jurisdictionId: uuid("jurisdiction_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -32,6 +36,9 @@ export const users = pgTable(
     uniqueIndex("users_email_unique").on(table.email),
     uniqueIndex("users_phone_unique").on(table.phone),
     uniqueIndex("users_government_id_hash_unique").on(table.governmentIdHash),
+    foreignKey({ columns: [table.jurisdictionId], foreignColumns: [jurisdictions.id] }).onDelete(
+      "set null",
+    ),
   ],
 );
 
