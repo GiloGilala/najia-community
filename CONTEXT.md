@@ -84,3 +84,17 @@ _Avoid_: rating, score (the aggregate is the Confidence Index)
 The aggregate Public Confidence Index for an Official in a quarter: per-option counts and percentages plus the mandatory disclaimer. Aggregate-only — voters are never exposed.
 _Avoid_: approval rating (colloquial; Confidence Index is canonical)
 
+### Lawyer Marketplace
+
+**Lawyer**
+A verified legal professional on the platform. A Lawyer *is* a User (the profile is keyed by `user_id`); the underlying User carries the account. `verification_status` starts `pending` and becomes `verified` via a platform action. Only `verified` Lawyers are matchable.
+_Avoid_: attorney (use Lawyer)
+
+**Lawyer Profile**
+The public, matchable data for a Lawyer: bar number, practice areas, jurisdictions where licensed, years practicing, languages, pro-bono flag. Never exposes the underlying User's credentials or government ID.
+_Avoid_: listing (use Lawyer Profile)
+
+**Matching**
+The transparent, deterministic recommendation of up to 5 eligible Lawyers to a citizen intake (practice area + jurisdiction). Eligibility: `verified`, licensed in the intake jurisdiction, and lists the practice area. Scored by a published formula (practice-area + jurisdiction + pro-bono + experience), tie-broken by bar number. Recommended, not mandatory.
+_Avoid_: ranking (use Matching; the score is the published formula)
+
