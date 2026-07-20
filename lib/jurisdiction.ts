@@ -50,4 +50,33 @@ export async function isResidentOf(
   return chain.includes(pollJurisdictionId);
 }
 
-export type { JurisdictionRow };
+/**
+ * Return the ids of leaf (local) jurisdictions beneath `scopeId` in the
+ * hierarchy. A local scope returns just itself; a state scope returns its LGAs;
+ * a national scope returns every LGA in the country. Used to roll confidence
+ * results down to local government areas for the regional breakdown.
+ */
+export async function descendantLeafIds(
+  db: DbClient,
+  scopeId: string,
+): Promise<string[]> {
+  const all = await db.select().from(jurisdictions);
+  const byId = new Map(all.map((r) => [r.id, r]));
+
+  // A node is a descendant of scopeId if scopeId appears in its ancestor chain.
+  const isDescendant = (row: JurisdictionRow): boolean => {
+    if (row.id === scopeId) return true;
+    let current: JurisdictionRow | undefined = row;
+    const seen = new Set<string>();
+    while (current && current.parentId && !seen.has(current.id)) {
+      seen.add(current.id);
+      if (current.parentId === scopeId) return true;
+      current = byId.get(current.parentId);
+    }
+    return false;
+  };
+
+  return all
+    .filter((r) => r.level === "local" && isDescendant(r))
+    .map((r) => r.id);
+}

@@ -81,8 +81,10 @@ A citizen's sentiment on an Official — `yes` / `no` / `uncertain` — one per 
 _Avoid_: rating, score (the aggregate is the Confidence Index)
 
 **Confidence Index**
-The aggregate Public Confidence Index for an Official in a quarter: per-option counts and percentages plus the mandatory disclaimer. Aggregate-only — voters are never exposed.
+The aggregate Public Confidence Index for an Official in a quarter: per-option counts and percentages plus the mandatory disclaimer. Aggregate-only — voters are never exposed. Extended with a **Confidence Interval** (Wilson 95% bounds on the yes-percentage) and **Regional Breakdown** (per-LGA, significance-gated) and **Trend** (quarter-over-quarter).
 _Avoid_: approval rating (colloquial; Confidence Index is canonical)
+
+### Lawyer Marketplace
 
 ### Lawyer Marketplace
 
