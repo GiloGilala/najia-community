@@ -98,3 +98,13 @@ _Avoid_: listing (use Lawyer Profile)
 The transparent, deterministic recommendation of up to 5 eligible Lawyers to a citizen intake (practice area + jurisdiction). Eligibility: `verified`, licensed in the intake jurisdiction, and lists the practice area. Scored by a published formula (practice-area + jurisdiction + pro-bono + experience), tie-broken by bar number. Recommended, not mandatory.
 _Avoid_: ranking (use Matching; the score is the published formula)
 
+### Lawyer Reviews
+
+**Review**
+A citizen's 1–5 rating of a Lawyer they engaged, with an optional comment and an `anonymous` flag. Stored with `reviewer_id` for uniqueness/audit but never surfaced publicly. A moderated review is excluded from ratings and the public list. A Lawyer may post one `response`.
+_Avoid_: testimonial (use Review)
+
+**Overall Rating**
+The displayed quality signal for a Lawyer: the average of non-moderated Reviews (out of 5) plus the review count. Derived, not stored.
+_Avoid_: score (use Overall Rating)
+

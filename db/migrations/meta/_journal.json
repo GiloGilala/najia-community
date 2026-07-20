@@ -50,6 +50,13 @@
       "when": 1784508450111,
       "tag": "0006_lawyers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784510169992,
+      "tag": "0007_lawyer_reviews",
+      "breakpoints": true
     }
   ]
 }
