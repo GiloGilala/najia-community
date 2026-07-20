@@ -7,3 +7,5 @@ export * from "./contact-verifications.ts";
 export * from "./sessions.ts";
 export * from "./jurisdictions.ts";
 export * from "./policy-polls.ts";
+export * from "./officials.ts";
+export * from "./confidence-votes.ts";

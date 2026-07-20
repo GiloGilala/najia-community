@@ -70,3 +70,17 @@ _Avoid_: ballot
 Aggregate per-option counts and percentages plus the mandatory disclaimer: "This is citizen sentiment only. It has no legal or electoral weight." Aggregate-only — voters are never exposed.
 _Avoid_: tally (use Poll Results)
 
+### Confidence Votes
+
+**Official**
+A normalized elected official (name, title, `jurisdiction_id`) with a term window (`term_starts_at` → `term_ends_at`, nullable). Confidence votes are only accepted while the official's term is active. Platform-managed, not user-submitted.
+_Avoid_: politician, leader (use Official)
+
+**Confidence Vote**
+A citizen's sentiment on an Official — `yes` / `no` / `uncertain` — one per User per Official per quarter (unique `(official_id, voter_id, quarter)`). Stored with `voter_id` for uniqueness only; results are aggregate and never attribute a vote to a User.
+_Avoid_: rating, score (the aggregate is the Confidence Index)
+
+**Confidence Index**
+The aggregate Public Confidence Index for an Official in a quarter: per-option counts and percentages plus the mandatory disclaimer. Aggregate-only — voters are never exposed.
+_Avoid_: approval rating (colloquial; Confidence Index is canonical)
+
