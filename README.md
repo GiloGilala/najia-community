@@ -1,10 +1,13 @@
-# Najia Community Bridge
+﻿# Najia Community Bridge
 
-A civic-technology platform connecting Nigerian citizens with governance feedback, verified evidence management, and legal access. See [`civic-platform-architecture.md`](./civic-platform-architecture.md) for the full platform documentation.
+A civic-technology platform connecting Nigerian citizens with governance feedback, verified evidence management, and legal access.
+
+- Platform documentation: [`docs/Najia Community.md`](./docs/Najia%20Community.md)
+- Technical architecture: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
 
 ## Status
 
-Greenfield. Active work: the **evidence-integrity pipeline** slice — see [`.scratch/evidence-integrity/spec.md`](./.scratch/evidence-integrity/spec.md) and the tickets under `.scratch/evidence-integrity/issues/`.
+Core slices built: authentication & identity, evidence integrity, policy polls, confidence votes (+ analytics), lawyer marketplace, and lawyer reviews. Each slice has a spec and tickets under [`.scratch/`](./.scratch). Next slices from the platform doc not yet implemented: AI manipulation detection (§4.3), moderation & content governance (§8), blog & content platform (§7), and governance/transparency reports (§14.2).
 
 ## Stack
 
