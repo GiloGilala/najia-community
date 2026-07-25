@@ -55,7 +55,7 @@ export const blogPostStatusEnum = z.enum(["draft", "published", "archived"]);
 
 export const createBlogPostSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be at most 200 characters"),
-  slug: slugValidator,
+  slug: slugValidator.optional(),
   summary: z.string().min(1, "Summary is required").max(500, "Summary must be at most 500 characters"),
   content: mdxContentValidator,
   categoryId: z.string().min(1, "Category ID is required"),
