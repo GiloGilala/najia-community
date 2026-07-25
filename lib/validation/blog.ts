@@ -29,7 +29,7 @@ const mdxContentValidator = z
 
 export const createBlogCategorySchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be at most 100 characters"),
-  slug: slugValidator,
+  slug: slugValidator.optional(),
   description: z.string().max(500, "Description must be at most 500 characters").optional(),
   icon: z.string().max(50, "Icon must be at most 50 characters").optional(),
   order: z.number().int().nonnegative("Order must be a non-negative number").default(0),
@@ -59,6 +59,7 @@ export const createBlogPostSchema = z.object({
   summary: z.string().min(1, "Summary is required").max(500, "Summary must be at most 500 characters"),
   content: mdxContentValidator,
   categoryId: z.string().min(1, "Category ID is required"),
+  authorId: z.string().min(1, "Author ID is required"),
   featuredImage: urlValidator.optional(),
   metaTitle: z.string().max(200, "Meta title must be at most 200 characters").optional(),
   metaDescription: z.string().max(500, "Meta description must be at most 500 characters").optional(),

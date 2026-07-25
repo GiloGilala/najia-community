@@ -83,7 +83,7 @@ describe("BlogService - Categories", () => {
 
       const input2 = buildCreateCategoryInput({ slug });
 
-      await expect(blogService.createCategory(input2)).toThrow(DuplicateCategorySlugError);
+      await expect(blogService.createCategory(input2)).rejects.toThrow(DuplicateCategorySlugError);
     });
   });
 
@@ -99,7 +99,7 @@ describe("BlogService - Categories", () => {
     });
 
     it("throws BlogCategoryNotFoundError for non-existent category", async () => {
-      await expect(blogService.getCategoryById("non-existent-id")).toThrow(BlogCategoryNotFoundError);
+      await expect(blogService.getCategoryById("non-existent-id")).rejects.toThrow(BlogCategoryNotFoundError);
     });
   });
 
@@ -116,7 +116,7 @@ describe("BlogService - Categories", () => {
     });
 
     it("throws BlogCategoryNotFoundError for non-existent slug", async () => {
-      await expect(blogService.getCategoryBySlug("non-existent-slug")).toThrow(BlogCategoryNotFoundError);
+      await expect(blogService.getCategoryBySlug("non-existent-slug")).rejects.toThrow(BlogCategoryNotFoundError);
     });
   });
 
@@ -145,7 +145,7 @@ describe("BlogService - Categories", () => {
         name: "Updated Name",
       });
 
-      await expect(blogService.updateCategory(updateInput)).toThrow(BlogCategoryNotFoundError);
+      await expect(blogService.updateCategory(updateInput)).rejects.toThrow(BlogCategoryNotFoundError);
     });
 
     it("throws DuplicateCategorySlugError when changing to duplicate slug", async () => {
@@ -160,7 +160,7 @@ describe("BlogService - Categories", () => {
         slug: slug1,
       });
 
-      await expect(blogService.updateCategory(updateInput)).toThrow(DuplicateCategorySlugError);
+      await expect(blogService.updateCategory(updateInput)).rejects.toThrow(DuplicateCategorySlugError);
     });
   });
 
@@ -171,17 +171,31 @@ describe("BlogService - Categories", () => {
 
       await blogService.deleteCategory(created.id);
 
-      await expect(blogService.getCategoryById(created.id)).toThrow(BlogCategoryNotFoundError);
+      await expect(blogService.getCategoryById(created.id)).rejects.toThrow(BlogCategoryNotFoundError);
     });
 
     it("throws BlogCategoryNotFoundError for non-existent category", async () => {
-      await expect(blogService.deleteCategory("non-existent-id")).toThrow(BlogCategoryNotFoundError);
+      await expect(blogService.deleteCategory("non-existent-id")).rejects.toThrow(BlogCategoryNotFoundError);
     });
 
     it("throws BlogCategoryInUseError when category has posts", async () => {
       // Create a category
       const input = buildCreateCategoryInput();
       const created = await blogService.createCategory(input);
+
+      // Create a user to be author
+      const { randomUUID } = await import("node:crypto");
+      const { users } = await import("../db/schema/users.ts");
+      const authorId = randomUUID();
+      const now = new Date("2025-01-01T00:00:00.000Z");
+      await harness.db.insert(users).values({
+        id: authorId,
+        email: `author-${Date.now()}@example.com`,
+        passwordHash: "hashed",
+        verificationStatus: "email_verified",
+        createdAt: now,
+        updatedAt: now,
+      });
 
       // Create a post in that category
       await blogService.createPost({
@@ -190,10 +204,10 @@ describe("BlogService - Categories", () => {
         summary: "Test summary",
         content: "Test content",
         categoryId: created.id,
-        authorId: "test-author-id",
+        authorId,
       });
 
-      await expect(blogService.deleteCategory(created.id)).toThrow(BlogCategoryInUseError);
+      await expect(blogService.deleteCategory(created.id)).rejects.toThrow(BlogCategoryInUseError);
     });
   });
 
