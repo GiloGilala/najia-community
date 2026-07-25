@@ -46,7 +46,7 @@ import { users } from "../db/schema/users.ts";
 
 export class BlogPostNotFoundError extends Error {
   constructor(idOrSlug: string, bySlug = false) {
-    super(`Blog post ${bySlug ? 'with slug' : 'not found': "${idOrSlug}"}`);
+    super(bySlug ? `Blog post with slug "${idOrSlug}" not found` : `Blog post not found: "${idOrSlug}"`);
     this.name = "BlogPostNotFoundError";
   }
 }
@@ -60,7 +60,7 @@ export class BlogPostAlreadyPublishedError extends Error {
 
 export class BlogCategoryNotFoundError extends Error {
   constructor(idOrSlug: string, bySlug = false) {
-    super(`Blog category ${bySlug ? 'with slug' : 'not found': "${idOrSlug}"}`);
+    super(bySlug ? `Blog category with slug "${idOrSlug}" not found` : `Blog category not found: "${idOrSlug}"`);
     this.name = "BlogCategoryNotFoundError";
   }
 }
@@ -620,7 +620,7 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
         throw new BlogCommentNotFoundError(id);
       }
       return row;
-    }
+    },
 
     async requireCommentParent(parentId: string): Promise<BlogCommentRow> {
       const [row] = await db.select().from(blogComments).where(eq(blogComments.id, parentId)).limit(1);
@@ -628,7 +628,7 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
         throw new BlogCommentParentNotFoundError(parentId);
       }
       return row;
-    }
+    },
 
     async createComment(input) {
       const validated = createBlogCommentSchema.parse(input);
@@ -815,7 +815,7 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
     },
 
     async getRepliesForComment(parentId: string): Promise<BlogCommentWithAuthorAndReplies[]> {
-      const [rows] = await db
+      const rows = await db
         .select()
         .from(blogComments)
         .where(eq(blogComments.parentId, parentId))

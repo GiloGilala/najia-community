@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, primaryKey, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users.ts";
 
 // =============================================================================
@@ -31,7 +31,7 @@ export const blogPosts = pgTable("blog_posts", {
   summary: text("summary").notNull(),
   content: text("content").notNull(),
   categoryId: text("category_id").notNull().references(() => blogCategories.id),
-  authorId: text("author_id").notNull().references(() => users.id),
+  authorId: uuid("author_id").notNull().references(() => users.id),
   status: text("status").notNull().$type<BlogPostStatus>(),
   publishedAt: timestamp("published_at", { mode: "date" }),
   featuredImage: text("featured_image"),
@@ -54,12 +54,12 @@ export type BlogCommentStatus = "pending" | "approved" | "rejected" | "spam";
 export const blogComments = pgTable("blog_comments", {
   id: text("id").primaryKey(),
   postId: text("post_id").notNull().references(() => blogPosts.id),
-  authorId: text("author_id").references(() => users.id),
+  authorId: uuid("author_id").references(() => users.id),
   authorName: text("author_name"),
   content: text("content").notNull(),
   status: text("status").notNull().$type<BlogCommentStatus>(),
   parentId: text("parent_id").references(() => blogComments.id),
-  moderatedBy: text("moderated_by").references(() => users.id),
+  moderatedBy: uuid("moderated_by").references(() => users.id),
   moderatedAt: timestamp("moderated_at", { mode: "date" }),
   moderationReason: text("moderation_reason"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
@@ -76,7 +76,7 @@ export type BlogCommentInsert = typeof blogComments.$inferInsert;
 export const blogPostViews = pgTable("blog_post_views", {
   id: text("id").primaryKey(),
   postId: text("post_id").notNull().references(() => blogPosts.id),
-  viewerId: text("viewer_id").references(() => users.id),
+  viewerId: uuid("viewer_id").references(() => users.id),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   referrer: text("referrer"),

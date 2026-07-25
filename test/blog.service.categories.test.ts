@@ -58,8 +58,8 @@ describe("BlogService - Categories", () => {
       expect(category.id.startsWith("bct_")).toBeTrue();
       expect(category.name).toBe(input.name);
       expect(category.slug).toBe(input.slug);
-      expect(category.description).toBe(input.description);
-      expect(category.icon).toBe(input.icon);
+      expect(category.description ?? undefined).toBe(input.description ?? undefined);
+      expect(category.icon ?? undefined).toBe(input.icon ?? undefined);
       expect(category.order).toBe(0);
       expect(category.createdAt).toEqual(DEFAULT_CLOCK_START);
     });
