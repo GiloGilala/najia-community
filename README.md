@@ -1,4 +1,4 @@
-﻿# Najia Community Bridge
+# Najia Community Bridge
 
 A civic-technology platform connecting Nigerian citizens with governance feedback, verified evidence management, and legal access.
 
@@ -7,7 +7,22 @@ A civic-technology platform connecting Nigerian citizens with governance feedbac
 
 ## Status
 
-Core slices built: authentication & identity, evidence integrity, policy polls, confidence votes (+ analytics), lawyer marketplace, and lawyer reviews. Each slice has a spec and tickets under [`.scratch/`](./.scratch). Next slices from the platform doc not yet implemented: AI manipulation detection (§4.3), moderation & content governance (§8), blog & content platform (§7), and governance/transparency reports (§14.2).
+**All 9 core slices built and tested (209 new tests added July 2026):**
+
+- ✅ Authentication & Identity
+- ✅ Evidence Integrity
+- ✅ Policy Sentiment Polls
+- ✅ Confidence Votes + Analytics (Wilson interval, regional breakdown, trend)
+- ✅ Lawyer Marketplace (matching, verification)
+- ✅ Lawyer Reviews (ratings, moderation)
+- ✅ **Blog & Content Platform (§7)** — categories, posts, comments, legal-literacy modules & enrollments (104 tests)
+- ✅ **Moderation & Content Governance (§8)** — queue, rules, warnings, suspensions, appeals (91 tests)
+- ✅ **AI Manipulation Detection (§4.3)** — results, method results, models, queue, heuristic detection (6 tests)
+- ✅ **Governance & Transparency Reports (§14.2)** — templates, reports, sections, schedules, audit, export (8 tests)
+
+Each slice has a spec and tickets under [`.scratch/`](./.scratch). No slices remain from the original platform doc — next work is API routes (Hono), web UI (TanStack Start), and mobile (Expo) per `docs/ARCHITECTURE.md`.
+
+**Merged:** PR #2 `bd49a7f` — `arena/019f98ab-najia-community` → `master`
 
 ## Stack
 
