@@ -39,7 +39,7 @@ import { users } from "../db/schema/users.ts";
 
 export class LegalLiteracyModuleNotFoundError extends Error {
   constructor(idOrSlug: string, bySlug = false) {
-    super(`Legal literacy module ${bySlug ? 'with slug' : 'not found': "${idOrSlug}"}`);
+    super(bySlug ? `Legal literacy module with slug "${idOrSlug}" not found` : `Legal literacy module not found: "${idOrSlug}"`);
     this.name = "LegalLiteracyModuleNotFoundError";
   }
 }

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, boolean, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users.ts";
 
 // =============================================================================
@@ -56,7 +56,7 @@ export type LegalLiteracyModuleInsert = typeof legalLiteracyModules.$inferInsert
 
 export const legalLiteracyEnrollments = pgTable("legal_literacy_enrollments", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
   moduleId: text("module_id").notNull().references(() => legalLiteracyModules.id),
   progress: integer("progress").notNull().default(0), // 0-100
   status: text("status").notNull().$type<LegalLiteracyEnrollmentStatus>(),

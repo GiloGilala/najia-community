@@ -46,7 +46,7 @@ import { users } from "../db/schema/users.ts";
 
 export class BlogPostNotFoundError extends Error {
   constructor(idOrSlug: string, bySlug = false) {
-    super(`Blog post ${bySlug ? 'with slug' : 'not found': "${idOrSlug}"}`);
+    super(bySlug ? `Blog post with slug "${idOrSlug}" not found` : `Blog post not found: "${idOrSlug}"`);
     this.name = "BlogPostNotFoundError";
   }
 }
@@ -60,7 +60,7 @@ export class BlogPostAlreadyPublishedError extends Error {
 
 export class BlogCategoryNotFoundError extends Error {
   constructor(idOrSlug: string, bySlug = false) {
-    super(`Blog category ${bySlug ? 'with slug' : 'not found': "${idOrSlug}"}`);
+    super(bySlug ? `Blog category with slug "${idOrSlug}" not found` : `Blog category not found: "${idOrSlug}"`);
     this.name = "BlogCategoryNotFoundError";
   }
 }
@@ -238,6 +238,54 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
     if (existing) {
       throw new DuplicateCategorySlugError(slug);
     }
+  }
+
+  async function requireComment(id: string): Promise<BlogCommentRow> {
+    const [row] = await db.select().from(blogComments).where(eq(blogComments.id, id)).limit(1);
+    if (!row) {
+      throw new BlogCommentNotFoundError(id);
+    }
+    return row;
+  }
+
+  async function requireCommentParent(parentId: string): Promise<BlogCommentRow> {
+    const [row] = await db.select().from(blogComments).where(eq(blogComments.id, parentId)).limit(1);
+    if (!row) {
+      throw new BlogCommentParentNotFoundError(parentId);
+    }
+    return row;
+  }
+
+  async function getRepliesRecursive(parentId: string): Promise<BlogCommentWithAuthorAndReplies[]> {
+    const rows = await db
+      .select()
+      .from(blogComments)
+      .where(eq(blogComments.parentId, parentId))
+      .orderBy(asc(blogComments.createdAt));
+
+    const replies: BlogCommentWithAuthorAndReplies[] = [];
+
+    for (const row of rows) {
+      let author: typeof users.$inferSelect | null = null;
+      if (row.authorId) {
+        const [authorRow] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, row.authorId))
+          .limit(1);
+        author = authorRow ?? null;
+      }
+
+      const nestedReplies = await getRepliesRecursive(row.id);
+
+      replies.push({
+        ...row,
+        author,
+        replies: nestedReplies,
+      });
+    }
+
+    return replies;
   }
 
   return {
@@ -614,22 +662,6 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
     // Blog Comments
     // --------------------------------------------------------------------------
 
-    async requireComment(id: string): Promise<BlogCommentRow> {
-      const [row] = await db.select().from(blogComments).where(eq(blogComments.id, id)).limit(1);
-      if (!row) {
-        throw new BlogCommentNotFoundError(id);
-      }
-      return row;
-    }
-
-    async requireCommentParent(parentId: string): Promise<BlogCommentRow> {
-      const [row] = await db.select().from(blogComments).where(eq(blogComments.id, parentId)).limit(1);
-      if (!row) {
-        throw new BlogCommentParentNotFoundError(parentId);
-      }
-      return row;
-    }
-
     async createComment(input) {
       const validated = createBlogCommentSchema.parse(input);
       
@@ -667,13 +699,13 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
     },
 
     async getCommentById(id) {
-      return this.requireComment(id);
+      return requireComment(id);
     },
 
     async updateComment(input) {
       const validated = updateBlogCommentSchema.parse(input);
       
-      await this.requireComment(validated.id);
+      await requireComment(validated.id);
       
       const now = clock.now();
       
@@ -694,7 +726,7 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
     },
 
     async deleteComment(id) {
-      await this.requireComment(id);
+      await requireComment(id);
       await db.delete(blogComments).where(eq(blogComments.id, id));
     },
 
@@ -752,7 +784,7 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
     async moderateComment(input) {
       const validated = moderateBlogCommentSchema.parse(input);
       
-      const comment = await this.requireComment(validated.id);
+      const comment = await requireComment(validated.id);
       
       const now = clock.now();
       const statusMap: Record<"approve" | "reject" | "spam", BlogCommentStatus> = {
@@ -791,7 +823,7 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
     },
 
     async getCommentThread(commentId: string): Promise<BlogCommentWithAuthorAndReplies> {
-      const comment = await this.requireComment(commentId);
+      const comment = await requireComment(commentId);
       
       // Get author
       let author: typeof users.$inferSelect | null = null;
@@ -805,7 +837,7 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
       }
       
       // Get replies recursively
-      const replies = await this.getRepliesForComment(commentId);
+      const replies = await getRepliesRecursive(commentId);
       
       return {
         ...comment,
@@ -815,35 +847,7 @@ export function createBlogService(deps: BlogServiceDeps): BlogService {
     },
 
     async getRepliesForComment(parentId: string): Promise<BlogCommentWithAuthorAndReplies[]> {
-      const [rows] = await db
-        .select()
-        .from(blogComments)
-        .where(eq(blogComments.parentId, parentId))
-        .orderBy(asc(blogComments.createdAt));
-      
-      const replies: BlogCommentWithAuthorAndReplies[] = [];
-      
-      for (const row of rows) {
-        let author: typeof users.$inferSelect | null = null;
-        if (row.authorId) {
-          const [authorRow] = await db
-            .select()
-            .from(users)
-            .where(eq(users.id, row.authorId))
-            .limit(1);
-          author = authorRow ?? null;
-        }
-        
-        const nestedReplies = await this.getRepliesForComment(row.id);
-        
-        replies.push({
-          ...row,
-          author,
-          replies: nestedReplies,
-        });
-      }
-      
-      return replies;
+      return getRepliesRecursive(parentId);
     },
 
     // --------------------------------------------------------------------------

@@ -70,11 +70,8 @@ describe("BlogService - Posts", () => {
       password: "password123",
     });
     
-    // Update user to writer role (simplified for test)
-    await harness.db
-      .update(users)
-      .set({ role: "writer" })
-      .where(eq(users.id, writer.id));
+    // Note: users table has no role column in current schema - RBAC is enforced at API layer, not service layer
+    // Writer role is not needed for service tests
     
     // Create a category
     category = await blogService.createCategory({
@@ -137,7 +134,7 @@ describe("BlogService - Posts", () => {
 
     it("calculates reading time from content", async () => {
       const shortContent = "# Short\n\nThis is short.";
-      const longContent = "# Long\n\n".padEnd(5000, "x");
+      const longContent = "# Long\n\n" + ("word ".repeat(1000));
 
       const shortPost = await blogService.createPost(buildCreatePostInput({
         categoryId: category.id,
@@ -174,7 +171,7 @@ describe("BlogService - Posts", () => {
         authorId: writer.id,
       });
 
-      await expect(blogService.createPost(input)).toThrow(BlogCategoryNotFoundError);
+      await expect(blogService.createPost(input)).rejects.toThrow(BlogCategoryNotFoundError);
     });
 
     it("throws DuplicateBlogSlugError for duplicate slug", async () => {
@@ -193,7 +190,7 @@ describe("BlogService - Posts", () => {
         slug,
       });
 
-      await expect(blogService.createPost(input2)).toThrow(DuplicateBlogSlugError);
+      await expect(blogService.createPost(input2)).rejects.toThrow(DuplicateBlogSlugError);
     });
   });
 
@@ -212,7 +209,7 @@ describe("BlogService - Posts", () => {
     });
 
     it("throws BlogPostNotFoundError for non-existent post", async () => {
-      await expect(blogService.getPostById("non-existent-id")).toThrow(BlogPostNotFoundError);
+      await expect(blogService.getPostById("non-existent-id")).rejects.toThrow(BlogPostNotFoundError);
     });
   });
 
@@ -233,7 +230,7 @@ describe("BlogService - Posts", () => {
     });
 
     it("throws BlogPostNotFoundError for non-existent slug", async () => {
-      await expect(blogService.getPostBySlug("non-existent-slug")).toThrow(BlogPostNotFoundError);
+      await expect(blogService.getPostBySlug("non-existent-slug")).rejects.toThrow(BlogPostNotFoundError);
     });
   });
 
@@ -245,7 +242,7 @@ describe("BlogService - Posts", () => {
       });
       const created = await blogService.createPost(input);
 
-      clock.advance({ milliseconds: 1000 });
+      clock.advance(1000);
 
       const updateInput = buildUpdatePostInput({
         id: created.id,
@@ -269,7 +266,7 @@ describe("BlogService - Posts", () => {
       });
       const created = await blogService.createPost(input);
 
-      clock.advance({ milliseconds: 1000 });
+      clock.advance(1000);
 
       const updateInput = buildUpdatePostInput({
         id: created.id,
@@ -289,6 +286,8 @@ describe("BlogService - Posts", () => {
       });
       const created = await blogService.createPost(input);
 
+      clock.advance(1000);
+
       const updateInput = buildUpdatePostInput({
         id: created.id,
         status: "published",
@@ -306,7 +305,7 @@ describe("BlogService - Posts", () => {
         title: "Updated Title",
       });
 
-      await expect(blogService.updatePost(updateInput)).toThrow(BlogPostNotFoundError);
+      await expect(blogService.updatePost(updateInput)).rejects.toThrow(BlogPostNotFoundError);
     });
 
     it("throws DuplicateBlogSlugError when changing to duplicate slug", async () => {
@@ -330,7 +329,7 @@ describe("BlogService - Posts", () => {
         slug: slug1,
       });
 
-      await expect(blogService.updatePost(updateInput)).toThrow(DuplicateBlogSlugError);
+      await expect(blogService.updatePost(updateInput)).rejects.toThrow(DuplicateBlogSlugError);
     });
   });
 
@@ -344,11 +343,11 @@ describe("BlogService - Posts", () => {
 
       await blogService.deletePost(created.id);
 
-      await expect(blogService.getPostById(created.id)).toThrow(BlogPostNotFoundError);
+      await expect(blogService.getPostById(created.id)).rejects.toThrow(BlogPostNotFoundError);
     });
 
     it("throws BlogPostNotFoundError for non-existent post", async () => {
-      await expect(blogService.deletePost("non-existent-id")).toThrow(BlogPostNotFoundError);
+      await expect(blogService.deletePost("non-existent-id")).rejects.toThrow(BlogPostNotFoundError);
     });
   });
 
@@ -361,7 +360,7 @@ describe("BlogService - Posts", () => {
       });
       const created = await blogService.createPost(input);
 
-      clock.advance({ milliseconds: 1000 });
+      clock.advance(1000);
 
       const published = await blogService.publishPost({ id: created.id });
 
@@ -376,7 +375,7 @@ describe("BlogService - Posts", () => {
       });
       const created = await blogService.createPost(input);
 
-      clock.advance({ milliseconds: 1000 });
+      clock.advance(1000);
 
       const published = await blogService.publishPost({ id: created.id });
 
@@ -385,7 +384,7 @@ describe("BlogService - Posts", () => {
     });
 
     it("throws BlogPostNotFoundError for non-existent post", async () => {
-      await expect(blogService.publishPost({ id: "non-existent-id" })).toThrow(BlogPostNotFoundError);
+      await expect(blogService.publishPost({ id: "non-existent-id" })).rejects.toThrow(BlogPostNotFoundError);
     });
 
     it("throws BlogPostAlreadyPublishedError for already published post", async () => {
@@ -396,8 +395,8 @@ describe("BlogService - Posts", () => {
       });
       const created = await blogService.createPost(input);
 
-      await expect(blogService.publishPost({ id: created.id })).toThrow(
-        "Blog post blg_.* is already published",
+      await expect(blogService.publishPost({ id: created.id })).rejects.toThrow(
+        /already published/,
       );
     });
   });
@@ -426,11 +425,11 @@ describe("BlogService - Posts", () => {
 
       const unpublished = await blogService.unpublishPost({ id: created.id });
 
-      expect(unpublished.publishedAt).toBe(created.publishedAt);
+      expect(unpublished.publishedAt).toEqual(created.publishedAt);
     });
 
     it("throws BlogPostNotFoundError for non-existent post", async () => {
-      await expect(blogService.unpublishPost({ id: "non-existent-id" })).toThrow(BlogPostNotFoundError);
+      await expect(blogService.unpublishPost({ id: "non-existent-id" })).rejects.toThrow(BlogPostNotFoundError);
     });
   });
 
@@ -483,14 +482,13 @@ describe("BlogService - Posts", () => {
     });
 
     it("filters by author", async () => {
-      // Create another writer
+      // Create another writer (no role column)
       const writer2 = await harness.db
         .insert(users)
         .values({
           email: `writer2-${Date.now()}@test.com`,
           passwordHash: "hashed_password",
           verificationStatus: "email_verified",
-          role: "writer",
           createdAt: DEFAULT_CLOCK_START,
           updatedAt: DEFAULT_CLOCK_START,
         })
@@ -565,7 +563,7 @@ describe("BlogService - Posts", () => {
 
     it("sorts by createdAt", async () => {
       for (let i = 0; i < 3; i++) {
-        clock.advance({ milliseconds: 1000 });
+        clock.advance(1000);
         await blogService.createPost(buildCreatePostInput({
           categoryId: category.id,
           authorId: writer.id,
@@ -646,7 +644,7 @@ describe("BlogService - Posts", () => {
     });
 
     it("throws BlogPostNotFoundError for non-existent slug", async () => {
-      await expect(blogService.getPostWithDetails("non-existent-slug")).toThrow(BlogPostNotFoundError);
+      await expect(blogService.getPostWithDetails("non-existent-slug")).rejects.toThrow(BlogPostNotFoundError);
     });
   });
 });
